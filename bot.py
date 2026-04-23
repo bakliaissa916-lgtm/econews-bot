@@ -1,149 +1,314 @@
 import telebot
 from telebot import types
-import os
+import os, json, random
+from datetime import datetime
 
-# ضع التوكن الخاص بك هنا أو استخرجه من بيئة العمل
-API_TOKEN = 'YOUR_BOT_TOKEN_HERE'
-bot = telebot.TeleBot(API_TOKEN)
+TOKEN = os.getenv("TOKEN")
+bot = telebot.TeleBot(TOKEN)
 
-# قاموس بسيط لتخزين بيانات المستخدمين (للتطوير المستقبلي يفضل استخدام قاعدة بيانات)
-user_data = {}
+DATA_FILE="data.json"
 
-def get_user_stats(user_id):
-    if user_id not in user_data:
-        user_data[user_id] = {'days': 0, 'relapses': 0, 'history': []}
-    return user_data[user_id]
+# ----------------------
+# Data
+# ----------------------
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE,"r") as f:
+        return json.load(f)
 
-# --- لوحة التحكم الرئيسية ---
-def main_markup():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    btn1 = types.KeyboardButton('🗓️ الخطة اليومية')
-    btn2 = types.KeyboardButton('🔥 التحديات')
-    btn3 = types.KeyboardButton('📊 تقدمي')
-    btn4 = types.KeyboardButton('🏆 الأوسمة')
-    btn5 = types.KeyboardButton('🚨 دعم فوري')
-    btn6 = types.KeyboardButton('💡 نصائح ومقالات')
-    btn7 = types.KeyboardButton('❌ سجل انتكاسة')
-    markup.add(btn1, btn2, btn3, btn4, btn5, btn6, btn7)
-    return markup
+def save_data(d):
+    with open(DATA_FILE,"w") as f:
+        json.dump(d,f)
 
+data=load_data()
+
+def get_user(uid):
+    uid=str(uid)
+    if uid not in data:
+        data[uid]={
+            "start_date":str(datetime.now().date()),
+            "relapses":0
+        }
+        save_data(data)
+    return data[uid]
+
+def clean_days(start):
+    s=datetime.strptime(start,"%Y-%m-%d")
+    return (datetime.now()-s).days
+
+# ----------------------
+# Tips
+# ----------------------
+tips = [
+"غير مكانك فورًا عند الشعور بالخطر",
+"لا تبق وحدك طويلًا",
+"الهاتف في السرير خطر",
+"الخروج يكسر الرغبة",
+"الانتكاس لا يلغي التقدم",
+"ابدأ دقيقة واحدة فقط عند الكسل",
+"اشغل الفراغ قبل أن يشغلك",
+"التعب الجسدي يقلل الشهوة",
+"راقب المحفزات لا النتائج فقط",
+"التعافي بناء حياة لا مجرد منع"
+]
+
+books = [
+"📘 Atomic Habits",
+"📗 Deep Work",
+"📙 The Power of Habit"
+]
+
+articles = [
+"https://fightthenewdrug.org/",
+"https://www.yourbrainonporn.com/"
+]
+
+# ----------------------
+# Main Menu
+# ----------------------
+def main_menu():
+    kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("📅 خطتي","📊 تقدمي")
+    kb.row("🚨 دعم فوري","🔥 التحديات")
+    kb.row("🏅 الأوسمة","💡 نصائح")
+    kb.row("❌ سجل انتكاسة")
+    return kb
+
+# ----------------------
+# Start
+# ----------------------
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "<b>مرحباً بك في بوت نقاء ✨</b>\nرحلة التعافي تبدأ بخطوة، أنا هنا لدعمك.", 
-                     parse_mode='HTML', reply_markup=main_markup())
-
-# --- 1. الخطة اليومية ---
-@bot.message_handler(func=lambda message: message.text == '🗓️ الخطة اليومية')
-def daily_plan(message):
-    markup = types.InlineKeyboardMarkup()
-    btn_pdf = types.InlineKeyboardButton("📥 تحميل جدول PDF فارغ", callback_data="get_pdf")
-    markup.add(btn_pdf)
-    
-    text = (
-        "<b>🗓️ خطتك اليومية المقترحة:</b>\n\n"
-        "1️⃣ <b>الفجر:</b> صلاة ورياضة صباحية 🏃‍♂️\n"
-        "2️⃣ <b>الظهر:</b> عمل/دراسة مركزة 📚\n"
-        "3️⃣ <b>المساء:</b> قراءة أو تطوير مهارة 🧠\n"
-        "4️⃣ <b>قبل النوم:</b> ابعد الهاتف عن السرير 🚫📱"
+    get_user(message.chat.id)
+    bot.send_message(
+        message.chat.id,
+        "مرحبا بك في نقاء 🌱",
+        reply_markup=main_menu()
     )
-    bot.send_message(message.chat.id, text, parse_mode='HTML', reply_markup=markup)
 
-# --- 2. تقدمي (العداد) ---
-@bot.message_handler(func=lambda message: message.text == '📊 تقدمي')
-def my_progress(message):
-    stats = get_user_stats(message.from_user.id)
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔄 تصفير العداد (إعادة)", callback_data="reset_days"))
-    
-    text = (
-        f"<b>📊 تقرير الأداء:</b>\n\n"
-        f"⏳ عدد الأيام الصافية: <code>{stats['days']}</code> يوم\n"
-        f"⚠️ عدد الانتكاسات: <code>{stats['relapses']}</code>\n"
-        f"🏁 استمر، أنت أقوى من مجرد رقم!"
-    )
-    bot.send_message(message.chat.id, text, parse_mode='HTML', reply_markup=markup)
+# ----------------------
+# Plan Menu
+# ----------------------
+def plan_menu():
+    kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("🤖 أنشئ لي جدول")
+    kb.row("📝 أعمل جدولي بنفسي")
+    kb.row("📄 تحميل قالب PDF")
+    kb.row("⬅ رجوع")
+    return kb
 
-# --- 3. الأوسمة (نظام النقاط) ---
-@bot.message_handler(func=lambda message: message.text == '🏆 الأوسمة')
-def medals(message):
-    days = get_user_stats(message.from_user.id)['days']
-    
-    def get_status(target):
-        return "✅ تم الحصول عليه" if days >= target else f"🔒 متبقي {target - days} يوم"
+# ----------------------
+# Progress Menu
+# ----------------------
+def progress_menu():
+    kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("🔄 إعادة العداد")
+    kb.row("⬅ رجوع")
+    return kb
 
-    text = (
-        "<b>🏆 لوحة الشرف الخاصة بك:</b>\n\n"
-        f"🥉 <b>الوسام البرونزي (14 يوم):</b> {get_status(14)}\n"
-        f"🥈 <b>الوسام الفضي (30 يوم):</b> {get_status(30)}\n"
-        f"🥇 <b>الوسام الذهبي (90 يوم):</b> {get_status(90)}\n"
-        f"👑 <b>وسام الحرية (180 يوم):</b> {get_status(180)}"
-    )
-    bot.send_message(message.chat.id, text, parse_mode='HTML')
+# ----------------------
+# Tips Menu
+# ----------------------
+def tips_menu():
+    kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("📚 كتب مقترحة")
+    kb.row("🌐 مقالات تعافي")
+    kb.row("🎯 أعطني نصائح")
+    kb.row("⬅ رجوع")
+    return kb
 
-# --- 4. التحديات (سجل الألوان) ---
-@bot.message_handler(func=lambda message: message.text == '🔥 التحديات')
-def challenges(message):
-    stats = get_user_stats(message.from_user.id)
-    # محاكاة للسلم بالألوان
-    history = "🟩" * stats['days'] + "🟥" * stats['relapses']
-    if not history: history = "لا يوجد سجل بعد، ابدأ اليوم!"
-    
-    bot.send_message(message.chat.id, f"<b>🔥 سلم التحدي الخاص بك:</b>\n\n{history}\n\n🟩 = يوم نجاح\n🟥 = انتكاسة", parse_mode='HTML')
+# ----------------------
+# Generate sample schedule
+# ----------------------
+def sample_schedule():
+    return """
+📅 جدول مقترح
 
-# --- 5. دعم فوري ---
-@bot.message_handler(func=lambda message: message.text == '🚨 دعم فوري')
-def quick_support(message):
-    tips = [
-        "⚠️ <b>خطر!</b> اترك المكان الذي أنت فيه فوراً واذهب لمكان عام.",
-        "🚶‍♂️ <b>تحرك:</b> قم بممارسة تمارين الضغط (15 مرة) الآن.",
-        "🚿 <b>تحدي:</b> خذ حماماً بارداً فوراً لتهدئة الأعصاب.",
-        "📱 <b>أغلق الشاشة:</b> ارمِ الهاتف بعيداً واقرأ صفحتين من كتاب."
-    ]
-    bot.send_message(message.chat.id, "\n\n".join(tips), parse_mode='HTML')
+06:30 صلاة وبداية اليوم
+08:00 دراسة/عمل
+13:00 خروج أو حركة
+17:00 تعلم مهارة
+21:00 بدون هاتف
+22:30 نوم
 
-# --- 6. نصائح ومقالات ---
-@bot.message_handler(func=lambda message: message.text == '💡 نصائح ومقالات')
-def tips_and_articles(message):
-    text = (
-        "<b>📚 مكتبة التعافي:</b>\n\n"
-        "1. <b>كتاب:</b> 'سماح بالرحيل' - لتنظيف المشاعر.\n"
-        "2. <b>كتاب:</b> 'العادات الذرية' - لبناء حياة جديدة.\n\n"
-        "🔗 <b>مقالات مختارة:</b>\n"
-        "<a href='https://example.com'>كيف يعيد الدماغ ترميم نفسه بعد التعافي؟</a>\n"
-        "<a href='https://example.com'>خطوات عملية لتجاوز المحفزات.</a>"
-    )
-    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=False)
+⚠ وقت الخطر:
+غيّر المكان فورًا
+"""
 
-# --- معالجة الضغط على الأزرار (Callback) ---
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    if call.data == "get_pdf":
+# ----------------------
+# Challenge ladder
+# ----------------------
+def challenge_ladder(user):
+    days=clean_days(user["start_date"])
+    rel=user["relapses"]
+
+    txt="🪜 سلم التقدم:\n\n"
+
+    for i in range(1,15):
+        if i<=days:
+            txt+="🟩 "
+        else:
+            txt+="⬜ "
+
+    txt+=f"\n\n❌ الانتكاسات: {rel} (تمثل بالأحمر)"
+    return txt
+
+# ----------------------
+# Medals
+# ----------------------
+def medal(days):
+    if days>=42:
+        return "🥇 وسام ذهبي"
+    elif days>=28:
+        return "🥈 وسام فضي"
+    elif days>=14:
+        return "🥉 وسام برونزي"
+    else:
+        return "ابدأ نحو أول وسام"
+
+# ----------------------
+# Messages
+# ----------------------
+@bot.message_handler(func=lambda m: True)
+def handle(m):
+
+    user=get_user(m.chat.id)
+    text=m.text
+
+    if text=="📅 خطتي":
+        bot.send_message(
+            m.chat.id,
+            "اختر طريقة التخطيط:",
+            reply_markup=plan_menu()
+        )
+
+    elif text=="🤖 أنشئ لي جدول":
+        bot.send_message(
+            m.chat.id,
+            sample_schedule()
+        )
+
+    elif text=="📝 أعمل جدولي بنفسي":
+        bot.send_message(
+            m.chat.id,
+"""قالب تعبئة سريع:
+
+الهدف اليوم:
+_____
+
+أوقات الخطر:
+_____
+
+بدائل صحية:
+_____"""
+        )
+
+    elif text=="📄 تحميل قالب PDF":
         try:
-            with open('schedule.pdf', 'rb') as f:
-                bot.send_document(call.message.chat.id, f, caption="إليك الجدول الفارغ، قم بطباعته والالتزام به!")
-        except FileNotFoundError:
-            bot.answer_callback_query(call.id, "عذراً، ملف PDF غير موجود حالياً.")
-            
-    elif call.data == "reset_days":
-        user_data[call.from_user.id]['days'] = 0
-        bot.answer_callback_query(call.id, "تم تصفير العداد. بداية جديدة قوية!")
-        bot.edit_message_text("تم تصفير العداد بنجاح. عد للوحة التحكم وابدأ من جديد.", call.message.chat.id, call.message.message_id)
+            with open("weekly_plan.pdf","rb") as f:
+                bot.send_document(
+                    m.chat.id,
+                    f,
+                    caption="📄 قالب نقاء الأسبوعي"
+                )
+        except:
+            bot.send_message(
+                m.chat.id,
+                "ضع ملف weekly_plan.pdf داخل المشروع."
+            )
 
-@bot.message_handler(func=lambda message: message.text == '❌ سجل انتكاسة')
-def record_relapse(message):
-    stats = get_user_stats(message.from_user.id)
-    stats['relapses'] += 1
-    stats['days'] = 0
-    bot.send_message(message.chat.id, "آسف لسماع ذلك، لكن تذكر: <b>الانتكاسة ليست النهاية، بل درس.</b> ارفع رأسك وابدأ من جديد الآن!", parse_mode='HTML')
+    elif text=="📊 تقدمي":
+        days=clean_days(user["start_date"])
 
-# إضافة ميزة زيادة الأيام (للتجربة)
-@bot.message_handler(commands=['add_day'])
-def add_day(message):
-    stats = get_user_stats(message.from_user.id)
-    stats['days'] += 1
-    bot.send_message(message.chat.id, f"أحسنت! أضفت يوماً جديداً. مجموعك الآن: {stats['days']}")
+        msg=f"""
+📊 تقدمك
 
+عدد الأيام: {days}
+عدد الانتكاسات: {user["relapses"]}
+"""
+        bot.send_message(
+            m.chat.id,
+            msg,
+            reply_markup=progress_menu()
+        )
+
+    elif text=="🔄 إعادة العداد":
+        user["start_date"]=str(datetime.now().date())
+        save_data(data)
+        bot.send_message(
+            m.chat.id,
+            "تم تصفير العداد."
+        )
+
+    elif text=="🚨 دعم فوري":
+        emergency="""
+🚨 افعل الآن:
+
+1- انهض فورًا
+2- غيّر مكانك
+3- اغسل وجهك
+4- لا تبق وحدك
+5- اخرج 5 دقائق
+
+هذه الرغبة مؤقتة.
+"""
+        bot.send_message(m.chat.id,emergency)
+
+    elif text=="🔥 التحديات":
+        bot.send_message(
+            m.chat.id,
+            challenge_ladder(user)
+        )
+
+    elif text=="🏅 الأوسمة":
+        days=clean_days(user["start_date"])
+        bot.send_message(
+            m.chat.id,
+            medal(days)
+        )
+
+    elif text=="💡 نصائح":
+        bot.send_message(
+            m.chat.id,
+            "اختر:",
+            reply_markup=tips_menu()
+        )
+
+    elif text=="🎯 أعطني نصائح":
+        selected=random.sample(tips,3)
+        bot.send_message(
+            m.chat.id,
+            "\n\n".join(selected)
+        )
+
+    elif text=="📚 كتب مقترحة":
+        bot.send_message(
+            m.chat.id,
+            "\n".join(books)
+        )
+
+    elif text=="🌐 مقالات تعافي":
+        bot.send_message(
+            m.chat.id,
+            "\n".join(articles)
+        )
+
+    elif text=="❌ سجل انتكاسة":
+        user["start_date"]=str(datetime.now().date())
+        user["relapses"]+=1
+        save_data(data)
+        bot.send_message(
+            m.chat.id,
+            "تم تسجيل الانتكاسة. واصل من جديد 💪"
+        )
+
+    elif text=="⬅ رجوع":
+        bot.send_message(
+            m.chat.id,
+            "القائمة الرئيسية",
+            reply_markup=main_menu()
+        )
+
+print("Bot running...")
 bot.infinity_polling()
-
-
-
