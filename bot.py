@@ -8,67 +8,60 @@ bot = telebot.TeleBot(TOKEN)
 
 DATA_FILE="data.json"
 
-# =========================
-# Storage
-# =========================
+# --------------------------------
+# DATA
+# --------------------------------
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {}
     with open(DATA_FILE,"r",encoding="utf-8") as f:
         return json.load(f)
 
-def save_data(d):
+def save_data():
     with open(DATA_FILE,"w",encoding="utf-8") as f:
-        json.dump(d,f)
+        json.dump(data,f)
 
 data=load_data()
 
-def user(uid):
+def get_user(uid):
     uid=str(uid)
     if uid not in data:
         data[uid]={
             "start_date":str(datetime.now().date()),
-            "relapses":0
+            "best_streak":0,
+            "relapses":0,
+            "triggers":[]
         }
-        save_data(data)
+        save_data()
     return data[uid]
 
-def days_clean(start):
+def streak_days(start):
     s=datetime.strptime(start,"%Y-%m-%d")
     return (datetime.now()-s).days
 
-
-# =========================
-# Content
-# =========================
-
+# ----------------------------
+# CONTENT
+# ----------------------------
 tips=[
-"غير مكانك فورًا عند الشعور بالخطر.",
-"لا تبق وحدك وقت طويل.",
-"اشغل الفراغ قبل أن يشغلك.",
-"ابدأ بخطوة صغيرة لا بالكمال.",
-"الانتكاس لا يلغي تقدمك.",
-"تعب الجسد يخفف الاندفاع.",
-"غيّر البيئة عند المحفز.",
-"الهاتف في السرير خطر.",
-"التعافي بناء حياة لا مقاومة فقط.",
-"تذكر لماذا بدأت."
+"غير المكان فورًا عند الخطر",
+"الفراغ أخطر من الرغبة",
+"ابدأ بخطوة صغيرة",
+"لا تبق وحدك",
+"الهاتف في السرير خطر",
+"التعافي بناء حياة"
 ]
 
 books=[
 "Atomic Habits",
-"The Power of Habit",
 "Deep Work",
+"The Power of Habit",
 "Can't Hurt Me",
-"The Slight Edge",
-"Essentialism",
-"The One Thing",
 "Your Brain On Porn"
 ]
 
 podcasts=[
 "Huberman Lab",
-"The Diary Of A CEO",
+"Diary of a CEO",
 "بودكاست تطوير ذات عربي"
 ]
 
@@ -79,135 +72,162 @@ articles=[
 "مشروع واعي"
 ]
 
-stories=[
-"قصة: شخص بدأ بتحسين يومه بدل محاربة الانتكاس فقط فنجح تدريجيًا.",
-"قصة: التعافي بدأ عند أحدهم حين ملأ الفراغ لا حين ركز على المنع فقط."
+stories = [
+"""📖 قصة 1
+بدأت المشكلة مع الفراغ.
+كل محاولة كانت منعًا فقط.
+التحول بدأ حين تغيّر أسلوب الحياة:
+رياضة
+انشغال
+تقليل عزلة
+وبعد انتكاسات كثيرة وصل 90 يوم.
+الدرس:
+التعافي ليس مقاومة فقط… بناء حياة.""",
+
+"""📖 قصة 2
+كان يسقط بعد الفجر دائمًا.
+بدل التركيز على السقوط،
+غيّر الروتين:
+لا رجوع للنوم
+مشي بعد الصلاة
+خطة للصباح
+وبدأت السلسلة تستقر."""
 ]
 
+danger_actions={
+"🛏 في السرير":[
+"قم الآن فورًا.",
+"ضع الهاتف بعيدًا.",
+"اذهب اغسل وجهك."
+],
+"🏠 وحدي":[
+"اخرج 10 دقائق.",
+"اتصل بأحد.",
+"ابدأ نشاطًا جسديًا."
+],
+"📱 أتصفح الهاتف":[
+"أغلق الهاتف 15 دقيقة.",
+"ضعه خارج الغرفة.",
+"ابدأ قراءة صفحة كتاب."
+]
+}
 
-# =========================
-# Menus
-# =========================
-
+# ----------------------------
+# MENUS
+# ----------------------------
 def main_menu():
     kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("📅 خطتي","📊 تقدمي")
-    kb.row("🏆 الإنجازات","🔥 التحديات")
-    kb.row("🆘 أنا في خطر","💡 موارد التعافي")
-    kb.row("📖 قصص متعافين","❌ سجل انتكاسة")
+    kb.row("📅 خطتي","📊 إحصائياتي")
+    kb.row("🏆 الإنجازات","🪜 الترتيب")
+    kb.row("🧠 محفزاتي","🆘 أنا في خطر")
+    kb.row("💡 موارد التعافي","📖 قصص التعافي")
+    kb.row("❌ سجل انتكاسة")
+    return kb
+
+def resources_menu():
+    kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("🎯 نصائح","📚 كتب")
+    kb.row("🎧 بودكاست","🌐 مواقع")
+    kb.row("⬅ رجوع")
     return kb
 
 def plan_menu():
     kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("🤖 أنشئ لي جدول")
-    kb.row("📝 أعمل جدولي بنفسي")
     kb.row("📄 دفتر نقاء PDF")
     kb.row("⬅ رجوع")
     return kb
 
-def resources_menu():
+def danger_menu():
     kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("🎯 نصائح")
-    kb.row("📚 كتب")
-    kb.row("🎧 بودكاست")
-    kb.row("🌐 مواقع ومقالات")
+    kb.row("🛏 في السرير")
+    kb.row("🏠 وحدي")
+    kb.row("📱 أتصفح الهاتف")
     kb.row("⬅ رجوع")
     return kb
 
-def progress_menu():
+def trigger_menu():
     kb=types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("🔄 إعادة العداد")
+    kb.row("الوحدة","الهاتف")
+    kb.row("بعد الفجر","محتوى بصري")
     kb.row("⬅ رجوع")
     return kb
 
-
-# =========================
-# Features
-# =========================
-
+# ----------------------------
+# HELPERS
+# ----------------------------
 def schedule():
     return """
-📅 جدول اليوم
+📅 خطة اليوم
 
-06:30 صلاة وبداية قوية
-08:00 دراسة / عمل
-13:00 خروج أو حركة
-17:00 تعلم مهارة
+06:30 بداية قوية
+08:00 دراسة/عمل
+13:00 حركة
+17:00 تعلم
 21:00 بدون هاتف
-22:30 نوم
 
 ⚠ وقت الخطر:
-غيّر مكانك فورًا
+غير المكان فورًا
 """
 
-def challenge_ladder(u):
-    d=days_clean(u["start_date"])
-    txt="🪜 سلم التعافي:\n\n"
-    for i in range(1,15):
-        if i<=d:
-            txt+="🟩 "
+def achievements(days):
+    levels=[
+(3,"✅ بداية"),
+(7,"💪 انضباط"),
+(14,"🥉 برونزي"),
+(28,"🥈 فضي"),
+(42,"🥇 ذهبي"),
+(90,"💎 ماسي")
+]
+    msg="🏆 الإنجازات:\n\n"
+    for need,name in levels:
+        if days>=need:
+            msg+=f"{name} مفتوح\n"
         else:
-            txt+="⬜ "
-    txt+=f"\n\nعدد الانتكاسات: {u['relapses']}"
-    return txt
-
-def achievements(d):
-    unlocked=[]
-
-    if d>=3:
-        unlocked.append("✅ إنجاز البداية")
-    if d>=7:
-        unlocked.append("✅ إنجاز الانضباط")
-    if d>=14:
-        unlocked.append("🥉 برونزي")
-    if d>=28:
-        unlocked.append("🥈 فضي")
-    if d>=42:
-        unlocked.append("🥇 ذهبي")
-    if d>=90:
-        unlocked.append("💎 ماسي")
-
-    behavioral=[
-    "📵 بدون هاتف ليلًا (سلوكي)",
-    "🌅 مقاومة محفز الفجر",
-    "📚 جلسات تركيز",
-    "🔥 تحديات مكتملة"
-    ]
-
-    if not unlocked:
-        unlocked=["ابدأ نحو أول إنجاز"]
-
-    msg="🏆 الإنجازات المفتوحة:\n\n"
-    msg+="\n".join(unlocked)
-
-    msg+="\n\n🎯 إنجازات سلوكية قادمة:\n"
-    msg+="\n".join(behavioral)
-
+            remain=need-days
+            msg+=f"{name} مقفل (باقي {remain} يوم)\n"
     return msg
 
+def leaderboard(uid):
+    board=[]
+    for k,v in data.items():
+        d=streak_days(v["start_date"])
+        board.append((k,d))
+    board.sort(key=lambda x:x[1], reverse=True)
 
-# =========================
+    txt="🪜 الترتيب:\n\n"
+    rank=1
+    mine=None
+    for k,d in board[:5]:
+        txt+=f"{rank}- {d} يوم\n"
+        if k==str(uid):
+            mine=rank
+        rank+=1
+    if mine:
+        txt+=f"\nرتبتك: #{mine}"
+    return txt
+
+# ----------------------------
 # START
-# =========================
+# ----------------------------
 @bot.message_handler(commands=['start'])
 def start(m):
-    user(m.chat.id)
+    get_user(m.chat.id)
     bot.send_message(
         m.chat.id,
         "🌱 مرحبًا بك في نقاء",
         reply_markup=main_menu()
     )
 
-
-# =========================
-# Messages
-# =========================
+# ----------------------------
+# MAIN HANDLER
+# ----------------------------
 @bot.message_handler(func=lambda m:True)
 def handle(m):
-
-    u=user(m.chat.id)
+    u=get_user(m.chat.id)
     text=m.text
 
+    # خطتي
     if text=="📅 خطتي":
         bot.send_message(
             m.chat.id,
@@ -216,137 +236,139 @@ def handle(m):
         )
 
     elif text=="🤖 أنشئ لي جدول":
-        bot.send_message(m.chat.id,schedule())
-
-    elif text=="📝 أعمل جدولي بنفسي":
         bot.send_message(
             m.chat.id,
-"""قالب سريع:
-
-هدف اليوم:
-____
-
-وقت الخطر:
-____
-
-بديل صحي:
-____
-"""
+            schedule()
         )
 
     elif text=="📄 دفتر نقاء PDF":
         try:
             with open("weekly_plan.pdf","rb") as f:
-                bot.send_document(
-                    m.chat.id,
-                    f,
-                    caption="دفتر نقاء الأسبوعي"
-                )
+                bot.send_document(m.chat.id,f)
         except:
             bot.send_message(
                 m.chat.id,
-                "ضع ملف weekly_plan.pdf داخل المشروع."
+                "أضف ملف weekly_plan.pdf"
             )
 
-    elif text=="📊 تقدمي":
-        d=days_clean(u["start_date"])
+    # احصائياتي
+    elif text=="📊 إحصائياتي":
+        current=streak_days(u["start_date"])
+        if current>u["best_streak"]:
+            u["best_streak"]=current
+            save_data()
+
         msg=f"""
-📊 تقدمك
+📊 إحصائياتك
 
-الأيام النظيفة: {d}
-عدد الانتكاسات: {u["relapses"]}
+السلسلة الحالية: {current}
+أفضل سلسلة: {u['best_streak']}
+عدد الانتكاسات: {u['relapses']}
 """
-        bot.send_message(
-            m.chat.id,
-            msg,
-            reply_markup=progress_menu()
-        )
+        bot.send_message(m.chat.id,msg)
 
-    elif text=="🔄 إعادة العداد":
-        u["start_date"]=str(datetime.now().date())
-        save_data(data)
-        bot.send_message(
-            m.chat.id,
-            "تم تصفير العداد."
-        )
-
+    # الإنجازات
     elif text=="🏆 الإنجازات":
-        d=days_clean(u["start_date"])
+        d=streak_days(u["start_date"])
         bot.send_message(
             m.chat.id,
             achievements(d)
         )
 
-    elif text=="🔥 التحديات":
+    # الترتيب
+    elif text=="🪜 الترتيب":
         bot.send_message(
             m.chat.id,
-            challenge_ladder(u)
+            leaderboard(m.chat.id)
         )
 
+    # محفزاتي
+    elif text=="🧠 محفزاتي":
+        bot.send_message(
+            m.chat.id,
+            "اختر محفزًا لديك:",
+            reply_markup=trigger_menu()
+        )
+
+    elif text in ["الوحدة","الهاتف","بعد الفجر","محتوى بصري"]:
+        if text not in u["triggers"]:
+            u["triggers"].append(text)
+            save_data()
+
+        bot.send_message(
+            m.chat.id,
+            f"تم حفظ المحفز: {text}\n"
+            "خطة المواجهة:\n"
+            "- غيّر البيئة\n- بديل صحي\n- راقب التوقيت"
+        )
+
+    # أنا في خطر
     elif text=="🆘 أنا في خطر":
-        emergency="""
-🚨 افعل الآن:
-
-1- انهض فورًا
-2- غيّر الغرفة
-3- اخرج 5 دقائق
-4- اغلق الهاتف
-5- تنفس ببطء
-
-الرغبة موجة وستمر.
-"""
         bot.send_message(
             m.chat.id,
-            emergency
+            "أين أنت الآن؟",
+            reply_markup=danger_menu()
         )
 
+    elif text in danger_actions:
+        solution=random.choice(danger_actions[text])
+        bot.send_message(
+            m.chat.id,
+            "🚨 افعل الآن:\n\n"+solution
+        )
+
+    # الموارد
     elif text=="💡 موارد التعافي":
         bot.send_message(
             m.chat.id,
-            "اختر موردا:",
+            "اختر:",
             reply_markup=resources_menu()
         )
 
     elif text=="🎯 نصائح":
         bot.send_message(
             m.chat.id,
-            "\n\n".join(random.sample(tips,3))
+            "\n".join(random.sample(tips,3))
         )
 
     elif text=="📚 كتب":
         bot.send_message(
             m.chat.id,
-            "📚 كتب مقترحة:\n\n"+
             "\n".join(books)
         )
 
     elif text=="🎧 بودكاست":
         bot.send_message(
             m.chat.id,
-            "🎧 اقتراحات:\n\n"+
             "\n".join(podcasts)
         )
 
-    elif text=="🌐 مواقع ومقالات":
+    elif text=="🌐 مواقع":
         bot.send_message(
             m.chat.id,
-            "🌐 موارد:\n\n"+
             "\n".join(articles)
         )
 
-    elif text=="📖 قصص متعافين":
+    # قصص
+    elif text=="📖 قصص التعافي":
         bot.send_message(
             m.chat.id,
             random.choice(stories)
         )
 
+    # انتكاسة
     elif text=="❌ سجل انتكاسة":
-        u["start_date"]=str(datetime.now().date())
+        current=streak_days(u["start_date"])
+        if current>u["best_streak"]:
+            u["best_streak"]=current
+
         u["relapses"]+=1
-        save_data(data)
+        u["start_date"]=str(datetime.now().date())
+        save_data()
+
         bot.send_message(
             m.chat.id,
-            "تم تسجيل الانتكاسة. واصل من جديد 💪"
+            "تم تسجيل الانتكاسة. ابدأ من جديد 💪"
         )
 
     elif text=="⬅ رجوع":
@@ -356,5 +378,6 @@ ____
             reply_markup=main_menu()
         )
 
+
 print("Running...")
-bot.infinity_polling()        
+bot.infinity_polling()    
